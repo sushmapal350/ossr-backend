@@ -8,6 +8,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request) {
   let body;
+  console.log('request body', request.body);
 
   try {
     body = await request.json();
@@ -35,7 +36,10 @@ export async function POST(request) {
     try {
       await connectDB();
     } catch (error) {
-      console.error("[LOGIN_API] Database connection failed", error);
+      console.error("[LOGIN_API] Database connection failed", {
+        code: error?.code,
+        message: error?.message
+      });
       return errorResponse("Database unavailable", 503);
     }
 

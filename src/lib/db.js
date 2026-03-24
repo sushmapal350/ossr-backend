@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 
 const MONGODB_URI = process.env.MONGODB_URI;
+const MAX_DB_CONNECT_RETRIES = Number(process.env.DB_CONNECT_RETRIES || 3);
+const DB_RETRY_DELAY_MS = Number(process.env.DB_RETRY_DELAY_MS || 1500);
 
 if (!MONGODB_URI) {
   throw new Error("Please define MONGODB_URI in environment variables.");
@@ -32,6 +34,42 @@ function registerConnectionEventHandlers() {
   global.mongooseEventHandlersRegistered = true;
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function connectWithRetry() {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= MAX_DB_CONNECT_RETRIES; attempt += 1) {
+    try {
+      console.log(
+        `[DB] Connecting to MongoDB (attempt ${attempt}/${MAX_DB_CONNECT_RETRIES})...`
+      );
+
+      const conn = await mongoose.connect(MONGODB_URI, {
+        bufferCommands: false,
+        serverSelectionTimeoutMS: 10000,
+        maxPoolSize: 10
+      });
+
+      return conn;
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `[DB] MongoDB connect attempt ${attempt} failed: ${error?.message || "unknown error"}`
+      );
+
+      if (attempt < MAX_DB_CONNECT_RETRIES) {
+        console.warn(`[DB] Retrying in ${DB_RETRY_DELAY_MS}ms...`);
+        await delay(DB_RETRY_DELAY_MS);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export async function connectDB() {
   registerConnectionEventHandlers();
 
@@ -44,12 +82,7 @@ export async function connectDB() {
   }
 
   if (!cached.promise) {
-    console.log("[DB] Connecting to MongoDB...");
-    cached.promise = mongoose.connect(MONGODB_URI, {
-      bufferCommands: false,
-      serverSelectionTimeoutMS: 10000,
-      maxPoolSize: 10
-    });
+    cached.promise = connectWithRetry();
   }
 
   try {
@@ -59,7 +92,7 @@ export async function connectDB() {
     cached.promise = null;
     cached.conn = null;
 
-    const dbError = new Error(error.message || "Database unavailable");
+    const dbError = new Error(error?.message || "Database unavailable");
     dbError.code = "DB_CONNECTION_FAILED";
     throw dbError;
   }

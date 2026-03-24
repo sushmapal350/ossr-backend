@@ -6,6 +6,7 @@ import { requireRole } from "@/middleware/auth";
 export async function GET(request) {
   try {
     await connectDB();
+        console.log('lllllllllllllllllllllllllllllllllllllllll');
 
     const { searchParams } = new URL(request.url);
     const location = searchParams.get("location");
@@ -62,6 +63,9 @@ export async function GET(request) {
     }
 
     const skip = (safePage - 1) * safeLimit;
+
+
+    
 
     const [jobs, total] = await Promise.all([
       Job.find(query)
