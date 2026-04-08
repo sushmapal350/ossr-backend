@@ -17,6 +17,11 @@ const applicationSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    cvUrl: {
+      type: String,
+      trim: true,
+      default: ""
+    },
     coverLetter: {
       type: String,
       trim: true,

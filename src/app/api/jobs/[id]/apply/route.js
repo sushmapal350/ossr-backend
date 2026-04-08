@@ -22,8 +22,8 @@ export async function POST(request, { params }) {
     }
 
     const body = await request.json();
-    const { coverLetter, resume, resumeUrl } = body;
-    const normalizedResume = resume || resumeUrl;
+    const { coverLetter, resume, resumeUrl, cvUrl } = body;
+    const normalizedResume = resume || cvUrl || resumeUrl;
 
     if (!normalizedResume) {
       return errorResponse("resume is required", 400);
@@ -49,6 +49,7 @@ export async function POST(request, { params }) {
       userId: authResult.user._id,
       jobId: id,
       resume: normalizedResume,
+      cvUrl: normalizedResume,
       coverLetter: coverLetter || ""
     });
 

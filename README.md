@@ -129,10 +129,22 @@ Authorization: Bearer <token>
 - `DELETE /api/jobs/:id` (admin)
 - `POST /api/jobs/:id/apply` (user/admin)
 
+### Categories
+
+- `GET /api/categories`
+- `POST /api/categories`
+- `GET /api/categories/:id`
+- `PUT /api/categories/:id`
+- `DELETE /api/categories/:id`
+
+`GET /api/categories/:id` accepts either a MongoDB category id or a slug.
+
 ### Applications
 
 - `GET /api/applications/my` (user/admin)
 - `GET /api/applications` (admin)
+- `GET /api/admin/applications` (admin, includes `applicantName`, `jobTitle`, `status`, `appliedAt`, `cvUrl`)
+- `GET /api/admin/applications/:id/cv` (admin, downloads or redirects to CV)
 
 ## 7. Job Filtering API
 
@@ -200,6 +212,128 @@ GET /api/jobs?location=Bangalore&category=Engineering&minSalary=50000&maxSalary=
     "createdAt": "2026-03-12T09:00:00.000Z",
     "updatedAt": "2026-03-12T09:00:00.000Z"
   }
+}
+```
+
+### Create Category Request (`POST /api/categories`)
+
+```json
+{
+  "name": "Engineering",
+  "description": "Roles for software, platform, and infrastructure teams"
+}
+```
+
+### Create Category Success (`201`)
+
+```json
+{
+  "success": true,
+  "message": "Category created successfully",
+  "data": {
+    "_id": "67f52ce4b91f8fd39e13a901",
+    "name": "Engineering",
+    "slug": "engineering",
+    "description": "Roles for software, platform, and infrastructure teams",
+    "createdAt": "2026-04-08T10:15:00.000Z",
+    "updatedAt": "2026-04-08T10:15:00.000Z"
+  }
+}
+```
+
+### Get All Categories Success (`200`)
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "_id": "67f52ce4b91f8fd39e13a901",
+      "name": "Engineering",
+      "slug": "engineering",
+      "description": "Roles for software, platform, and infrastructure teams",
+      "createdAt": "2026-04-08T10:15:00.000Z",
+      "updatedAt": "2026-04-08T10:15:00.000Z"
+    },
+    {
+      "_id": "67f52d0ab91f8fd39e13a902",
+      "name": "Design",
+      "slug": "design",
+      "description": "UX, UI, product design, and research roles",
+      "createdAt": "2026-04-08T10:16:00.000Z",
+      "updatedAt": "2026-04-08T10:16:00.000Z"
+    }
+  ]
+}
+```
+
+### Get Single Category Success (`200`)
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "67f52ce4b91f8fd39e13a901",
+    "name": "Engineering",
+    "slug": "engineering",
+    "description": "Roles for software, platform, and infrastructure teams",
+    "createdAt": "2026-04-08T10:15:00.000Z",
+    "updatedAt": "2026-04-08T10:15:00.000Z"
+  }
+}
+```
+
+### Update Category Request (`PUT /api/categories/engineering`)
+
+```json
+{
+  "name": "Engineering and Platform",
+  "description": "Software, DevOps, platform, and infrastructure roles"
+}
+```
+
+### Update Category Success (`200`)
+
+```json
+{
+  "success": true,
+  "message": "Category updated successfully",
+  "data": {
+    "_id": "67f52ce4b91f8fd39e13a901",
+    "name": "Engineering and Platform",
+    "slug": "engineering-and-platform",
+    "description": "Software, DevOps, platform, and infrastructure roles",
+    "createdAt": "2026-04-08T10:15:00.000Z",
+    "updatedAt": "2026-04-08T10:20:00.000Z"
+  }
+}
+```
+
+### Delete Category Success (`200`)
+
+```json
+{
+  "success": true,
+  "message": "Category deleted successfully"
+}
+```
+
+### Duplicate Slug Error (`409`)
+
+```json
+{
+  "success": false,
+  "message": "slug must be unique"
+}
+```
+
+### Validation Error (`400`)
+
+```json
+{
+  "success": false,
+  "message": "name is required"
 }
 ```
 

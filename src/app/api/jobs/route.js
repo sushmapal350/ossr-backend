@@ -3,10 +3,73 @@ import { connectDB } from "@/lib/db";
 import { errorResponse, successResponse } from "@/lib/apiResponse";
 import { requireRole } from "@/middleware/auth";
 
+const ALLOWED_EXPERIENCE_LEVELS = ["intern", "junior", "mid", "senior", "lead"];
+const ALLOWED_JOB_TYPES = ["Full Time", "Part Time", "Remote"];
+
+function normalizeOptionalString(value) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  return String(value).trim();
+}
+
+function normalizeStringArray(value, fieldName) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${fieldName} must be an array of strings`);
+  }
+
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+}
+
+function normalizeJobType(body) {
+  const rawValue = body.jobType ?? body.employmentType ?? body.type;
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return undefined;
+  }
+
+  const normalized = String(rawValue).trim().toLowerCase();
+
+  if (normalized === "full time" || normalized === "full-time") {
+    return "Full Time";
+  }
+
+  if (normalized === "part time" || normalized === "part-time") {
+    return "Part Time";
+  }
+
+  if (normalized === "remote") {
+    return "Remote";
+  }
+
+  throw new Error(`jobType must be one of: ${ALLOWED_JOB_TYPES.join(", ")}`);
+}
+
+function toApiType(jobType) {
+  if (!jobType) {
+    return "";
+  }
+
+  if (jobType === "Full Time") {
+    return "full-time";
+  }
+
+  if (jobType === "Part Time") {
+    return "part-time";
+  }
+
+  return "remote";
+}
+
 export async function GET(request) {
   try {
     await connectDB();
-        console.log('lllllllllllllllllllllllllllllllllllllllll');
 
     const { searchParams } = new URL(request.url);
     const location = searchParams.get("location");
@@ -111,10 +174,39 @@ export async function POST(request) {
       return authResult.error;
     }
 
-    const body = await request.json();
-    const { title, company, description, location, category, experienceLevel, salary } = body;
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse("Invalid JSON payload", 400);
+    }
 
-    if (!title || !company || !description || !location || !category || salary === undefined) {
+    const {
+      title,
+      company,
+      description,
+      location,
+      category,
+      experienceLevel,
+      salary
+    } = body;
+
+    const normalizedTitle = String(title || "").trim();
+    const normalizedCompany = String(company || "").trim();
+    const normalizedDescription = String(description || "").trim();
+    const normalizedLocation = String(location || "").trim();
+    const normalizedCategory = String(category || "").trim();
+
+    if (
+      !normalizedTitle ||
+      !normalizedCompany ||
+      !normalizedDescription ||
+      !normalizedLocation ||
+      !normalizedCategory ||
+      salary === undefined ||
+      salary === null ||
+      salary === ""
+    ) {
       return errorResponse(
         "title, company, description, location, category and salary are required",
         400
@@ -124,11 +216,10 @@ export async function POST(request) {
     const normalizedExperienceLevel = experienceLevel
       ? String(experienceLevel).toLowerCase()
       : undefined;
-    const allowedExperienceLevels = ["intern", "junior", "mid", "senior", "lead"];
 
     if (
       normalizedExperienceLevel !== undefined &&
-      !allowedExperienceLevels.includes(normalizedExperienceLevel)
+      !ALLOWED_EXPERIENCE_LEVELS.includes(normalizedExperienceLevel)
     ) {
       return errorResponse(
         "experienceLevel must be one of: intern, junior, mid, senior, lead",
@@ -136,26 +227,76 @@ export async function POST(request) {
       );
     }
 
+    let normalizedJobType;
+    let responsibilities;
+    let skills;
+    let benefits;
+
+    try {
+      normalizedJobType = normalizeJobType(body);
+      responsibilities = normalizeStringArray(body.responsibilities, "responsibilities");
+      skills = normalizeStringArray(body.skills, "skills");
+      benefits = normalizeStringArray(body.benefits, "benefits");
+    } catch (error) {
+      return errorResponse(error.message || "Invalid job payload", 400);
+    }
+
     const numericSalary = Number(salary);
     if (Number.isNaN(numericSalary) || numericSalary < 0) {
       return errorResponse("salary must be a valid non-negative number", 400);
     }
 
+    const normalizedExactSalary =
+      body.exactSalary === undefined || body.exactSalary === null || body.exactSalary === ""
+        ? null
+        : Number(body.exactSalary);
+
+    if (normalizedExactSalary !== null && (Number.isNaN(normalizedExactSalary) || normalizedExactSalary < 0)) {
+      return errorResponse("exactSalary must be a valid non-negative number", 400);
+    }
+
     await connectDB();
 
     const job = await Job.create({
-      title,
-      company,
-      description,
-      location,
-      category,
+      title: normalizedTitle,
+      company: normalizedCompany,
+      description: normalizedDescription,
+      shortDescription: normalizeOptionalString(body.shortDescription) || normalizedDescription,
+      location: normalizedLocation,
+      category: normalizedCategory,
+      jobType: normalizedJobType || "",
+      type: toApiType(normalizedJobType),
+      employmentType: normalizedJobType || "",
+      experience: normalizeOptionalString(body.experience) || normalizedExperienceLevel || "",
       experienceLevel: normalizedExperienceLevel,
+      salaryRange: normalizeOptionalString(body.salaryRange) || "",
+      exactSalary: normalizedExactSalary,
       salary: numericSalary,
+      degree: normalizeOptionalString(body.degree) || "",
+      responsibilities: responsibilities || [],
+      skills: skills || [],
+      benefits: benefits || [],
       createdBy: authResult.user._id
     });
 
     return successResponse(job, "Job created successfully", 201);
   } catch (error) {
+    if (error?.name === "ValidationError") {
+      const validationMessages = Object.values(error.errors || {}).map(
+        (entry) => entry?.message
+      ).filter(Boolean);
+
+      return errorResponse(
+        validationMessages[0] || "Job validation failed",
+        400,
+        validationMessages
+      );
+    }
+
+    if (error?.name === "CastError") {
+      return errorResponse("Invalid payload format", 400);
+    }
+
     return errorResponse(error.message || "Failed to create job", 500);
   }
 }

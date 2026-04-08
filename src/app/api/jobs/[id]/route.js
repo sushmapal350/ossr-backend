@@ -4,6 +4,69 @@ import { connectDB } from "@/lib/db";
 import { errorResponse, successResponse } from "@/lib/apiResponse";
 import { requireRole } from "@/middleware/auth";
 
+const ALLOWED_EXPERIENCE_LEVELS = ["intern", "junior", "mid", "senior", "lead"];
+const ALLOWED_JOB_TYPES = ["Full Time", "Part Time", "Remote"];
+
+function normalizeOptionalString(value) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  return String(value).trim();
+}
+
+function normalizeJobType(rawValue) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return undefined;
+  }
+
+  const normalized = String(rawValue).trim().toLowerCase();
+
+  if (normalized === "full time" || normalized === "full-time") {
+    return "Full Time";
+  }
+
+  if (normalized === "part time" || normalized === "part-time") {
+    return "Part Time";
+  }
+
+  if (normalized === "remote") {
+    return "Remote";
+  }
+
+  throw new Error(`jobType must be one of: ${ALLOWED_JOB_TYPES.join(", ")}`);
+}
+
+function toApiType(jobType) {
+  if (!jobType) {
+    return "";
+  }
+
+  if (jobType === "Full Time") {
+    return "full-time";
+  }
+
+  if (jobType === "Part Time") {
+    return "part-time";
+  }
+
+  return "remote";
+}
+
+function normalizeStringArray(value, fieldName) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`${fieldName} must be an array of strings`);
+  }
+
+  return value
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+}
+
 function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
 }
@@ -43,26 +106,63 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const updates = {};
 
-    const updatableFields = [
-      "title",
-      "company",
-      "description",
-      "location",
-      "category",
-      "experienceLevel",
-      "salary"
-    ];
-    updatableFields.forEach((field) => {
-      if (body[field] !== undefined) {
-        updates[field] = body[field];
-      }
-    });
+    const title = normalizeOptionalString(body.title);
+    if (title !== undefined) {
+      updates.title = title;
+    }
+
+    const company = normalizeOptionalString(body.company);
+    if (company !== undefined) {
+      updates.company = company;
+    }
+
+    const description = normalizeOptionalString(body.description);
+    if (description !== undefined) {
+      updates.description = description;
+    }
+
+    const shortDescription = normalizeOptionalString(body.shortDescription);
+    if (shortDescription !== undefined) {
+      updates.shortDescription = shortDescription;
+    }
+
+    const location = normalizeOptionalString(body.location);
+    if (location !== undefined) {
+      updates.location = location;
+    }
+
+    const category = normalizeOptionalString(body.category);
+    if (category !== undefined) {
+      updates.category = category;
+    }
+
+    const salaryRange = normalizeOptionalString(body.salaryRange);
+    if (salaryRange !== undefined) {
+      updates.salaryRange = salaryRange;
+    }
+
+    const degree = normalizeOptionalString(body.degree);
+    if (degree !== undefined) {
+      updates.degree = degree;
+    }
+
+    const experience = normalizeOptionalString(body.experience);
+    if (experience !== undefined) {
+      updates.experience = experience;
+    }
+
+    if (body.experienceLevel !== undefined) {
+      updates.experienceLevel = body.experienceLevel;
+    }
+
+    if (body.salary !== undefined) {
+      updates.salary = body.salary;
+    }
 
     if (updates.experienceLevel !== undefined) {
       const normalizedExperienceLevel = String(updates.experienceLevel).toLowerCase();
-      const allowedExperienceLevels = ["intern", "junior", "mid", "senior", "lead"];
 
-      if (!allowedExperienceLevels.includes(normalizedExperienceLevel)) {
+      if (!ALLOWED_EXPERIENCE_LEVELS.includes(normalizedExperienceLevel)) {
         return errorResponse(
           "experienceLevel must be one of: intern, junior, mid, senior, lead",
           400
@@ -78,6 +178,43 @@ export async function PUT(request, { params }) {
         return errorResponse("salary must be a valid non-negative number", 400);
       }
       updates.salary = numericSalary;
+    }
+
+    if (body.exactSalary !== undefined) {
+      const numericExactSalary =
+        body.exactSalary === null || body.exactSalary === "" ? null : Number(body.exactSalary);
+
+      if (numericExactSalary !== null && (Number.isNaN(numericExactSalary) || numericExactSalary < 0)) {
+        return errorResponse("exactSalary must be a valid non-negative number", 400);
+      }
+
+      updates.exactSalary = numericExactSalary;
+    }
+
+    try {
+      const normalizedJobType = normalizeJobType(body.jobType ?? body.employmentType ?? body.type);
+      if (normalizedJobType !== undefined) {
+        updates.jobType = normalizedJobType;
+        updates.employmentType = normalizedJobType;
+        updates.type = toApiType(normalizedJobType);
+      }
+
+      const responsibilities = normalizeStringArray(body.responsibilities, "responsibilities");
+      if (responsibilities !== undefined) {
+        updates.responsibilities = responsibilities;
+      }
+
+      const skills = normalizeStringArray(body.skills, "skills");
+      if (skills !== undefined) {
+        updates.skills = skills;
+      }
+
+      const benefits = normalizeStringArray(body.benefits, "benefits");
+      if (benefits !== undefined) {
+        updates.benefits = benefits;
+      }
+    } catch (error) {
+      return errorResponse(error.message || "Invalid job payload", 400);
     }
 
     await connectDB();
