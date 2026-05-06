@@ -18,6 +18,15 @@ cp .env.example .env.local
 npm run dev
 ```
 
+`npm run dev` now checks whether a local MongoDB instance is reachable at the `MONGODB_URI` host and port.
+When the URI points to `127.0.0.1` or `localhost`, it will auto-start `mongod.exe` with the workspace-local `.mongodb-data` and `.mongodb-log` directories before Next.js boots.
+
+If you want to run only the MongoDB bootstrap step manually, use:
+
+```bash
+npm run db:ensure
+```
+
 Backend will run on:
 
 - `http://localhost:3000`
@@ -31,6 +40,12 @@ MONGODB_URI=mongodb://127.0.0.1:27017/ossr
 JWT_SECRET=replace_with_a_strong_secret
 JWT_EXPIRES_IN=7d
 FRONTEND_URL=http://localhost:4200
+```
+
+Optional for custom MongoDB installs:
+
+```env
+MONGOD_PATH=C:\Program Files\MongoDB\Server\8.2\bin\mongod.exe
 ```
 
 ## 3. Folder Structure

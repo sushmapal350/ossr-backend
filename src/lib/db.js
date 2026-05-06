@@ -20,14 +20,22 @@ function registerConnectionEventHandlers() {
   }
 
   mongoose.connection.on("connected", () => {
+    cached.conn = mongoose.connection;
+    cached.promise = Promise.resolve(mongoose.connection);
     console.log("[DB] MongoDB connected");
   });
 
   mongoose.connection.on("disconnected", () => {
+    cached.conn = null;
+    cached.promise = null;
     console.warn("[DB] MongoDB disconnected");
   });
 
   mongoose.connection.on("error", (error) => {
+    if (mongoose.connection.readyState !== 1) {
+      cached.conn = null;
+      cached.promise = null;
+    }
     console.error("[DB] MongoDB connection error", error);
   });
 
@@ -74,11 +82,16 @@ export async function connectDB() {
   registerConnectionEventHandlers();
 
   if (mongoose.connection.readyState === 1) {
+    cached.conn = mongoose.connection;
     return mongoose.connection;
   }
 
   if (cached.conn) {
-    return cached.conn;
+    if (mongoose.connection.readyState === 1) {
+      return cached.conn;
+    }
+
+    cached.conn = null;
   }
 
   if (!cached.promise) {
@@ -87,6 +100,7 @@ export async function connectDB() {
 
   try {
     cached.conn = await cached.promise;
+    cached.promise = Promise.resolve(cached.conn);
     return cached.conn;
   } catch (error) {
     cached.promise = null;

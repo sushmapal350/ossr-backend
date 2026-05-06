@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/db";
 import { errorResponse, successResponse } from "@/lib/apiResponse";
 import { requireRole } from "@/middleware/auth";
 
+export { POST } from "@/app/api/jobs/route";
+
 export async function GET(request) {
   try {
     const authResult = await requireRole(request, ["admin"]);

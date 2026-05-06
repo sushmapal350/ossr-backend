@@ -6,6 +6,27 @@ import { errorResponse, successResponse } from "@/lib/apiResponse";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function findUserByIdentifier(identifier) {
+  const normalizedIdentifier = identifier.trim().toLowerCase();
+
+  if (EMAIL_REGEX.test(normalizedIdentifier)) {
+    return User.findOne({ email: normalizedIdentifier }).select("+password");
+  }
+
+  const localPartPattern = new RegExp(`^${escapeRegex(normalizedIdentifier)}@`, "i");
+
+  return User.findOne({
+    $or: [
+      { email: localPartPattern },
+      { name: new RegExp(`^${escapeRegex(identifier.trim())}$`, "i") }
+    ]
+  }).select("+password");
+}
+
 export async function POST(request) {
   let body;
   console.log('request body', request.body);
@@ -18,15 +39,17 @@ export async function POST(request) {
   }
 
   try {
-    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+    const identifier = typeof body?.email === "string"
+      ? body.email.trim()
+      : typeof body?.username === "string"
+        ? body.username.trim()
+        : typeof body?.identifier === "string"
+          ? body.identifier.trim()
+          : "";
     const password = typeof body?.password === "string" ? body.password : "";
 
-    if (!email || !password) {
-      return errorResponse("email and password are required", 400);
-    }
-
-    if (!EMAIL_REGEX.test(email)) {
-      return errorResponse("Please provide a valid email address", 400);
+    if (!identifier || !password) {
+      return errorResponse("email or username and password are required", 400);
     }
 
     if (password.length < 6) {
@@ -43,7 +66,7 @@ export async function POST(request) {
       return errorResponse("Database unavailable", 503);
     }
 
-    const user = await User.findOne({ email }).select("+password");
+    const user = await findUserByIdentifier(identifier);
     if (!user) {
       return errorResponse("Invalid email or password", 401);
     }

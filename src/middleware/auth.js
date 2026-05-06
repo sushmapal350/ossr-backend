@@ -4,6 +4,10 @@ import { verifyToken } from "@/lib/jwt";
 import { errorResponse } from "@/lib/apiResponse";
 import bcrypt from "bcryptjs";
 
+function isDatabaseUnavailableError(error) {
+  return error?.code === "DB_CONNECTION_FAILED";
+}
+
 function isDevAuthBypassEnabled() {
   const isNonProduction = process.env.NODE_ENV !== "production";
   const bypassFlag = process.env.AUTH_BYPASS_TOKEN_VALIDATION === "true";
@@ -23,7 +27,7 @@ async function getBypassUser() {
   if (devUser) {
     return devUser;
   }
-
+ 
   const devEmail = process.env.DEV_BYPASS_ADMIN_EMAIL || "dev-admin@local.dev";
   const existingDevUser = await User.findOne({ email: devEmail }).select("-password");
   if (existingDevUser) {
@@ -39,9 +43,9 @@ async function getBypassUser() {
   });
 
   return User.findById(created._id).select("-password");
-}
+} 
 
-export async function requireAuth(request) {
+export async function requireAuth(request) {       
   try {
     if (isDevAuthBypassEnabled()) {
       await connectDB();
@@ -66,6 +70,10 @@ export async function requireAuth(request) {
 
     return { user };
   } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return { error: errorResponse("Database unavailable", 503) };
+    }
+
     return { error: errorResponse("Invalid or expired token", 401) };
   }
 }
